@@ -1,4 +1,5 @@
 from app.handlers.base import router
+from app.handlers.admin import routerAdmin
 from app.database.models import async_main
 from app.tgBot import bot
 
@@ -10,7 +11,7 @@ async def main():
     await async_main()
 
     dp = Dispatcher()
-    dp.include_router(router)
+    dp.include_routers(routerAdmin, router)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

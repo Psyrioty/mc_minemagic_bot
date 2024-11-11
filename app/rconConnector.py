@@ -6,3 +6,9 @@ async def sendCode(name, code):
         f'tell {name} Ваш код верификации: {code}',
         host=RCON_IP, port=RCON_PORT, passwd=RCON_PASSWORD
     )
+
+async def command(text):
+    await rcon(
+        text,
+        host=RCON_IP, port=RCON_PORT, passwd=RCON_PASSWORD
+    )
