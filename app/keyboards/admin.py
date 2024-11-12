@@ -6,7 +6,8 @@ from app.database.requests import getAllSupportMessageNoCheck
 mainAdmin = InlineKeyboardMarkup(inline_keyboard=[
                             [InlineKeyboardButton(text='Посмотреть неотвеченные обращения', callback_data='checkSupport')],
                             [InlineKeyboardButton(text='Забанить пользователя по ID', callback_data='ban')],
-                            [InlineKeyboardButton(text='Рассылка', callback_data='sendAllUsersMessage')]
+                            [InlineKeyboardButton(text='Рассылка', callback_data='sendAllUsersMessage')],
+                            [InlineKeyboardButton(text='Колич. пользователей', callback_data='users')]
 ])
 
 async def getSupports():

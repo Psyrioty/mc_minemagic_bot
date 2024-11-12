@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from app.state import adminResponseSupport, adminSendAll
 from app.rconConnector import sendCode
 from app.database.requests import setTelegramUser, setVerificationCode, checkVerificationCode, checkMinecraftAccaunt, \
-    supportSend, checkBanned, getReward, getSupportForId, sendSupportResponse, sendAllMessageRes
+    supportSend, checkBanned, getReward, getSupportForId, sendSupportResponse, sendAllMessageRes, allUsers
 from config import ADMIN_ID
 
 import app.keyboards.admin as kb
@@ -61,3 +61,10 @@ async def sendAllText(message: Message, state: FSMContext):
     resultText = await sendAllMessageRes(message.text)
     await message.answer(text=resultText)
     await state.clear()
+
+
+#пользователи
+@routerAdmin.callback_query(ControlProtect(), F.data == 'users')
+async def colUsers(callback: CallbackQuery):
+    col = await allUsers()
+    await callback.message.edit_text(f'Колич. пользователей: {col}')

@@ -5,6 +5,7 @@ from app.rconConnector import command
 from app.tgBot import bot
 import datetime
 from datetime import timedelta
+from config import ADMIN_ID
 import random
 
 from sqlalchemy import select, update, delete
@@ -64,6 +65,7 @@ async def supportSend(tgId, name):
             _user = await session.scalar(select(user).where(user.tgId == tgId))
             session.add(support(name=name, botTelegramUser_id=_user.id))
             await session.commit()
+            await bot.send_message(int(ADMIN_ID), "Новое обращение!")
             return("Обращение успешно отправлено.")
         except:
             return("Ошибка! Попробуйте позже...")
@@ -130,3 +132,12 @@ async def sendAllMessageRes(text):
             return "Готово"
         #except:
         #    return "Ошибка"
+
+async def allUsers():
+    async with async_session() as session:
+        #try:
+            _users = await session.scalars(select(user))
+            col = 0
+            for _user in _users:
+                col+=1
+            return col
