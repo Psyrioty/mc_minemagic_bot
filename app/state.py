@@ -20,6 +20,9 @@ class cooperation(StatesGroup):
 class wish(StatesGroup):
     text = State()
 
+class setNewPassword(StatesGroup):
+    password = State()
+
 class adminResponseSupport(StatesGroup):
     text = State()
 

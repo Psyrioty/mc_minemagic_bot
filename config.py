@@ -16,3 +16,9 @@ ECHO = True
 RCON_IP = os.getenv("RCON_IP")
 RCON_PASSWORD = os.getenv("RCON_PASSWORD")
 RCON_PORT = os.getenv("RCON_PORT")
+
+LOBBY_RCON_IP = os.getenv("RCON_IP")
+LOBBY_RCON_PASSWORD = os.getenv("RCON_PASSWORD")
+LOBBY_RCON_PORT = os.getenv("RCON_PORT")
+
+CHANNEL_ID = os.getenv("CHANNEL_ID")

@@ -1,12 +1,13 @@
 from app.database.models import user, userMinecraft, support
 from app.database.models import async_session
 from app.commands import commands
-from app.rconConnector import command
+from app.rconConnector import rconConnector
 from app.tgBot import bot
 import datetime
 from datetime import timedelta
 from config import ADMIN_ID
 import random
+from config import LOBBY_RCON_IP, LOBBY_RCON_PORT, LOBBY_RCON_PASSWORD
 
 from sqlalchemy import select, update, delete
 
@@ -19,15 +20,19 @@ async def setTelegramUser(tgId, username):
             session.add(user(tgId=tgId, username=username))
             await session.commit()
 
-async def setVerificationCode(tgId):
+async def setVerificationCode(tgId, name):
     randomVerificationCode = [random.choice('QWERTYUIPASDFGHJKLZXCVBNM123456789') for _ in range(10)]
     verificationCode = "".join(randomVerificationCode)
     codeEndDate = datetime.datetime.now() + timedelta(minutes=5)
     codeEndDate = codeEndDate.strftime('%a %b %d %H:%M:%S %Y')
     async with async_session() as session:
-        _user = await session.scalar(select(user).where(user.tgId == tgId))
-        await session.execute(update(user).values(verificationCode = verificationCode, endTimeVerificationCode = str(codeEndDate)).where(user.id == _user.id))
-        await session.commit()
+        _player = await session.scalar(select(userMinecraft).where(userMinecraft.name == name))
+        if _player == None:
+            _user = await session.scalar(select(user).where(user.tgId == tgId))
+            await session.execute(update(user).values(verificationCode = verificationCode, endTimeVerificationCode = str(codeEndDate)).where(user.id == _user.id))
+            await session.commit()
+        else:
+            return("")
 
     return(verificationCode)
 
@@ -85,7 +90,7 @@ async def getReward(tgId):
             if (_user.reward == False):
                 _mineUser = await session.scalar(select(userMinecraft).where(userMinecraft.botTelegramUser_id == _user.id))
                 textCommand = await commands.getRewardVip(_mineUser.name)
-                await command(textCommand)
+                await rconConnector.command(textCommand, LOBBY_RCON_IP, LOBBY_RCON_PORT, LOBBY_RCON_PASSWORD)
                 await session.execute(update(user).values(reward= True).where(user.id == _user.id))
                 await session.commit()
                 return "Награда успешно получена."
@@ -141,3 +146,9 @@ async def allUsers():
             for _user in _users:
                 col+=1
             return col
+
+async def getPlayerForTelegramID(tgId):
+    async with async_session() as session:
+        _user = await session.scalar(select(user).where(user.tgId == tgId))
+        _player = await session.scalar(select(userMinecraft).where(userMinecraft.botTelegramUser_id == _user.id))
+        return _player.name

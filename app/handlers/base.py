@@ -2,9 +2,18 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, Filter
 from aiogram.fsm.context import FSMContext
-from app.state import sendVerificationKey, report, support, cooperation, wish
-from app.rconConnector import sendCode
-from app.database.requests import setTelegramUser, setVerificationCode, checkVerificationCode, checkMinecraftAccaunt, supportSend, checkBanned, getReward
+
+from app.database.listData import jsonData
+
+from app.tgBot import bot
+
+from config import RCON_IP, RCON_PORT, RCON_PASSWORD, LOBBY_RCON_IP, LOBBY_RCON_PORT, LOBBY_RCON_PASSWORD, CHANNEL_ID
+
+from app.keyboards.base import toMain
+from app.state import sendVerificationKey, report, support, cooperation, wish, setNewPassword
+from app.rconConnector import rconConnector
+from app.database.requests import setTelegramUser, setVerificationCode, checkVerificationCode, checkMinecraftAccaunt, supportSend, checkBanned, getReward, getPlayerForTelegramID
+from app.commands import commands
 
 import app.keyboards.base as kb
 
@@ -20,6 +29,7 @@ class ControlProtect(Filter):
 @router.message(ControlProtect(), Command('start', 'restart'))
 @router.callback_query(ControlProtect(), F.data == 'toMain')
 async def cmd_start(message: Message | CallbackQuery, state: FSMContext):
+    await state.clear()
     print(f"Пользователь ID: {message.from_user.id} USERNAME: {message.from_user.username} выполнил команду /start")
     try:
         res = await checkMinecraftAccaunt(message.from_user.id)
@@ -53,11 +63,15 @@ async def sendVerificationCodeName(message: Message, state: FSMContext):
     if(' ' in name):
         await message.answer(text='Ник указан неверно, укажите ник без пробелов', reply_markup=kb.toMain)
     else:
-        code = await  setVerificationCode(message.from_user.id)
-        await sendCode(name, code)
-        await state.update_data(name=message.text)
-        await message.answer(text='Введите Ваш код верификации, который был отправлен в игру:', reply_markup=kb.toMain)
-        await state.set_state(sendVerificationKey.code)
+        code = await  setVerificationCode(message.from_user.id, name)
+        if code != "":
+            await rconConnector.sendCode(name, code, RCON_IP, RCON_PORT, RCON_PASSWORD)
+            await state.update_data(name=message.text)
+            await message.answer(text='Введите Ваш код верификации, который был отправлен в игру:', reply_markup=kb.toMain)
+            await state.set_state(sendVerificationKey.code)
+        else:
+            await message.answer(text='Такой игрок уже привязан к tg аккаунту.', reply_markup=kb.toMain)
+            await state.clear()
 
 @router.message(ControlProtect(), sendVerificationKey.code)
 async def sendVerificationCodeCode(message: Message, state: FSMContext):
@@ -194,6 +208,58 @@ async def cooperationBtn(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(res, reply_markup=kb.toMain)
 
 
+#СМЕНА ПАРОЛЯ
+@router.callback_query(ControlProtect(), F.data == 'newPassword')
+async def newPassword(callback: CallbackQuery, state: FSMContext):
+    print(f"Пользователь ID: {callback.from_user.id} REWARD: {callback.from_user.username} нажал кнопку: {callback.data}")
+    await callback.message.edit_text("Введите новый пароль без пробелов:", reply_markup=kb.toMain)
+    await state.set_state(setNewPassword.password)
+
+@router.message(ControlProtect(), setNewPassword.password)
+async def newPasswordSend(message: Message, state: FSMContext):
+    if(' ' in message.text):
+        await message.answer("Введите новый пароль без пробелов:", reply_markup=kb.toMain)
+    else:
+        print(f"Пользователь ID: {message.from_user.id} USERNAME: {message.from_user.username} ввел новый пароль.")
+        player = await getPlayerForTelegramID(message.from_user.id)
+        password = message.text
+        cmd = await commands.setNewPassword(password, player)
+        res = await rconConnector.command(cmd, LOBBY_RCON_IP, LOBBY_RCON_PORT, LOBBY_RCON_PASSWORD)
+        if (res):
+            await message.answer(f"Запрос на новый пароль отправлен на сервер.\n Напоминание, если пароль очень простой или короткий, то сервер может его отклонить.", reply_markup=toMain)
+        else:
+            await message.answer("Ошибка. Попробуйте позже.",reply_markup=toMain)
+        await state.clear()
+
+#ИВЕНТ
+@router.callback_query(ControlProtect(), F.data == 'event')
+async def event(callback: CallbackQuery):
+    name = await getPlayerForTelegramID(callback.from_user.id)
+    data = jsonData()
+    print(f"Пользователь ID: {callback.from_user.id} REWARD: {callback.from_user.username} нажал кнопку: {callback.data}")
+    if (await data.checkUser(name) == None):
+        inChannel = await bot.get_chat_member(chat_id= CHANNEL_ID, user_id= callback.from_user.id)
+        if (inChannel.status != 'left'):
+            text = f"<b><i>ИВЕНТ</i></b>\n\n<b><i><u>Инструкция:</u></i></b>\n\n1) Нажмите кнопку: `Получить семена 🎁`\n2) На игрового персонажа будут отправлены <u>семена</u>;\n3) Посадите семена на <u>своей территории</u> и дождитесь плода (убедитесь, что росток никто не раздавит, не зальет водой, а у плода будет место для появления);\n4) Плод будет похож на <u>алмазный блок</u>, сломайте его! (Плод появляется схоже с выращиванием тыквы и арбузом)"
+            await callback.message.edit_text(text, reply_markup=kb.event, parse_mode="HTML")
+        else:
+            await callback.message.edit_text("Подпишитесь на канал: t.me/mc_minemagic!", reply_markup=kb.toMain, parse_mode="HTML")
+    else:
+        await callback.message.edit_text("Вы уже получали семена...", reply_markup=kb.toMain, parse_mode="HTML")
+
+@router.callback_query(ControlProtect(), F.data == 'giveEvent')
+async def giveEvent(callback: CallbackQuery):
+    data = jsonData()
+    playerName = await getPlayerForTelegramID(callback.from_user.id)
+    if (await data.checkUser(playerName) == None):
+        res = await rconConnector.command(f"ei give {playerName} fireSword 1", RCON_IP, RCON_PORT, RCON_PASSWORD)
+        if (res):
+            await data.addUser(playerName)
+            await callback.message.edit_text("Семена отправлены на персонажа.", reply_markup=kb.toMain,
+                                             parse_mode="HTML")
+    else:
+        await callback.message.edit_text("Вы уже получали семена...", reply_markup=kb.toMain,
+                                         parse_mode="HTML")
 
 
 
@@ -209,6 +275,7 @@ async def cooperationBtn(callback: CallbackQuery, state: FSMContext):
 #ЗАПУСК БОТА ОСТАЛЬНЫЕ СЛУЧАИ
 @router.message(ControlProtect())
 async def cmd_other(message: Message | CallbackQuery, state: FSMContext):
+    await state.clear()
     print(f"Пользователь ID: {message.from_user.id} USERNAME: {message.from_user.username} выполнил команду /start")
     res = await checkMinecraftAccaunt(message.from_user.id)
     if isinstance(message, Message):
@@ -229,4 +296,5 @@ async def cmd_other(message: Message | CallbackQuery, state: FSMContext):
 @router.message()
 @router.callback_query()
 async def cmd_banned(message: Message | CallbackQuery, state: FSMContext):
+    await state.clear()
     await message.answer(text='Этот телеграм аккаунт забанен в боте!')
